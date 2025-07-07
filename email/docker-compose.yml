@@ -1,0 +1,33 @@
+#Isso cria dois containers: mailweb e dbmail. O mailweb espera o banco subir para conectar.
+version: '3.8'
+
+services:
+  mailweb:
+    build: .
+    container_name: mailweb
+    ports:
+      - "25:25"
+      - "587:587"
+      - "993:993"
+      - "8080:80"
+    volumes:
+      - ./maildata:/var/mail
+    depends_on:
+      - dbmail
+    environment:
+      - DB_HOST=dbmail
+      - DB_USER=roundcube
+      - DB_PASS=senhaSegura
+    restart: unless-stopped
+
+  dbmail:
+    image: mariadb:10.6
+    container_name: dbmail
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: roundcube
+      MYSQL_USER: roundcube
+      MYSQL_PASSWORD: senhaSegura
+    volumes:
+      - ./db:/var/lib/mysql
