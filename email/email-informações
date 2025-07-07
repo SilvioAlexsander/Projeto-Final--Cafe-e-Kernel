@@ -1,0 +1,194 @@
+Claro! Aqui está o **Dockerfile completo** que instala e configura:
+
+- **Postfix (SMTP)**
+- **Dovecot (IMAP)**
+- **Roundcube (Webmail)**
+- **Apache2 + PHP**
+- **Supervisor** para gerenciar os serviços
+
+```Dockerfile
+FROM debian:bullseye
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Atualiza e instala os pacotes necessários
+RUN apt-get update && apt-get install -y \
+    postfix \
+    dovecot-core dovecot-imapd \
+    apache2 \
+    php php-mbstring php-intl php-common php-curl php-zip php-mysql php-xml php-cli php-gd \
+    roundcube roundcube-core roundcube-mysql roundcube-plugins \
+    supervisor \
+    wget \
+    nano \
+    net-tools \
+    iputils-ping \
+    && apt-get clean
+
+# Configura o Apache para servir o Roundcube
+RUN echo "Alias /webmail /var/lib/roundcube" > /etc/apache2/conf-available/roundcube.conf \
+    && echo "<Directory /var/lib/roundcube>" >> /etc/apache2/conf-available/roundcube.conf \
+    && echo "    Options +FollowSymLinks" >> /etc/apache2/conf-available/roundcube.conf \
+    && echo "    AllowOverride All" >> /etc/apache2/conf-available/roundcube.conf \
+    && echo "    Require all granted" >> /etc/apache2/conf-available/roundcube.conf \
+    && echo "</Directory>" >> /etc/apache2/conf-available/roundcube.conf \
+    && a2enconf roundcube
+
+# Ativa módulos do Apache
+RUN a2enmod rewrite
+
+# Cria diretório de configuração do Supervisor
+RUN mkdir -p /etc/supervisor/conf.d
+
+# Copie o arquivo supervisord.conf para esse caminho no build:
+# COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Expõe as portas necessárias
+EXPOSE 25 587 993 80
+
+# Inicia todos os serviços com o Supervisor
+CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+```
+
+---
+
+### ✅ O que você precisa fazer agora:
+
+1. Criar o arquivo `supervisord.conf` com os comandos para iniciar Postfix, Dovecot e Apache.
+2. Criar os arquivos de configuração do Postfix e Dovecot (se ainda não tiver).
+3. Criar o `docker-compose.yml` para orquestrar o container.
+
+Se quiser, posso te mandar o conteúdo do `supervisord.conf` e os arquivos de configuração agora mesmo. Deseja isso?
+
+## 📦 Estrutura do Container `mail`
+
+## 📧 1. Postfix (SMTP)
+
+### Arquivo: `mail/config/postfix/main.cf`
+
+```ini
+myhostname = mail.local
+mydomain = local
+myorigin = /etc/mailname
+inet_interfaces = all
+inet_protocols = ipv4
+mydestination = $myhostname, localhost.$mydomain, localhost
+relayhost =
+mynetworks = 127.0.0.0/8
+home_mailbox = Maildir/
+smtpd_banner = $myhostname ESMTP
+```
+
+Esse arquivo define:
+- O nome do host do servidor de e-mail
+- Que ele aceita conexões locais
+- Que os e-mails serão armazenados no formato **Maildir**
+
+---
+
+## 📥 2. Dovecot (IMAP)
+
+### Arquivo: `mail/config/dovecot/dovecot.conf`
+
+```conf
+disable_plaintext_auth = no
+mail_privileged_group = mail
+protocols = imap
+!include conf.d/*.conf
+```
+
+### Arquivo: `mail/config/dovecot/10-mail.conf`
+
+```conf
+mail_location = maildir:~/Maildir
+```
+
+### Arquivo: `mail/config/dovecot/10-auth.conf`
+
+```conf
+disable_plaintext_auth = no
+auth_mechanisms = plain login
+!include auth-system.conf.ext
+```
+
+Esses arquivos configuram o Dovecot para:
+- Usar autenticação simples (útil para testes locais)
+- Acessar os e-mails no formato Maildir
+- Usar autenticação do sistema (usuários do container)
+
+---
+
+## 🌐 3. Roundcube (Webmail)
+
+### Arquivo: `mail/config/roundcube/apache.conf`
+
+```apache
+Alias /webmail /var/lib/roundcube
+
+<Directory /var/lib/roundcube>
+    Options +FollowSymLinks
+    AllowOverride All
+    Require all granted
+</Directory>
+```
+
+Esse arquivo configura o Apache para servir o Roundcube em `http://localhost:8080/webmail`.
+
+---
+
+## 🧩 4. Supervisor
+
+### Arquivo: `mail/config/supervisord.conf`
+
+```ini
+[supervisord]
+nodaemon=true
+
+[program:postfix]
+command=/usr/sbin/postfix start-fg
+
+[program:dovecot]
+command=/usr/sbin/dovecot -F
+
+[program:apache2]
+command=/usr/sbin/apache2ctl -D FOREGROUND
+```
+
+Esse arquivo garante que todos os serviços iniciem juntos no container.
+
+---
+
+## 🐳 5. docker-compose.yml
+
+```yaml
+version: '3.8'
+
+services:
+  mail:
+    build: ./mail
+    container_name: mailserver
+    ports:
+      - "25:25"
+      - "587:587"
+      - "993:993"
+      - "8080:80"
+    volumes:
+      - maildata:/var/mail
+    restart: unless-stopped
+
+volumes:
+  maildata:
+```
+
+---
+
+## ✅ Próximos passos
+
+Você pode:
+1. Criar usuários de e-mail no container com `adduser`
+2. Testar envio/recebimento com um cliente de e-mail ou o Roundcube
+3. Adicionar suporte a SSL (STARTTLS ou IMAPS)
+
+---
+
+Se quiser, posso gerar um novo `.zip` com todos esses arquivos atualizados para você baixar e usar direto no VS Code. Deseja isso?
