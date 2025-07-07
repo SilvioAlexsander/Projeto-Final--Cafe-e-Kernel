@@ -1,0 +1,26 @@
+services:
+  dns:
+    build:
+      context: ./bind
+      dockerfile: Dockerfile
+    container_name: bind
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+    volumes:
+      - ./bind:/etc/bind
+    networks:
+      - dnsnet
+
+  web:
+    build:
+      context: ./portalweb
+    container_name: webserver
+    ports:
+      - "80:80"
+    networks:
+      - dnsnet
+
+networks:
+  dnsnet:
+    driver: bridge
